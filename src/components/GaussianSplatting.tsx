@@ -9,9 +9,7 @@ const GaussianShaderMaterial = {
     scale: { value: 1 },
   },
   vertexShader: `
-    attribute vec3 instancePosition;
     attribute vec4 instanceColor;
-    attribute vec3 instanceScale;
     uniform float time;
     uniform float scale;
     varying vec4 vColor;
@@ -19,20 +17,24 @@ const GaussianShaderMaterial = {
     
     void main() {
       vColor = instanceColor;
-      vec3 pos = position * instanceScale * scale;
+      
+      // Extract instance position from the matrix (column 3)
+      vec3 instancePos = vec3(instanceMatrix[3][0], instanceMatrix[3][1], instanceMatrix[3][2]);
       
       // Shimmering effect
-      pos *= 1.0 + sin(time * 2.0 + instancePosition.x) * 0.1;
+      float shimmer = 1.0 + sin(time * 2.0 + instancePos.x) * 0.1;
       
-      vec4 worldPos = instanceMatrix * vec4(pos, 1.0);
-      worldPos.xyz += instancePosition;
+      // Apply scale and shimmer to local position
+      vec3 transformed = position * scale * shimmer;
+      
+      // Calculate world position
+      vec4 mvPosition = modelViewMatrix * instanceMatrix * vec4(transformed, 1.0);
+      
+      gl_Position = projectionMatrix * mvPosition;
       
       // Distance-based alpha
-      float dist = length(cameraPosition - worldPos.xyz);
+      float dist = length(mvPosition.xyz);
       vAlpha = 1.0 - smoothstep(10.0, 50.0, dist);
-      
-      gl_Position = projectionMatrix * modelViewMatrix * worldPos;
-      gl_PointSize = (300.0 * scale) / dist;
     }
   `,
   fragmentShader: `
@@ -40,13 +42,7 @@ const GaussianShaderMaterial = {
     varying float vAlpha;
     
     void main() {
-      // Ellipsoidal shape
-      vec2 center = gl_PointCoord - vec2(0.5);
-      float dist = length(center);
-      if (dist > 0.5) discard;
-      
-      float alpha = 1.0 - smoothstep(0.0, 0.5, dist);
-      gl_FragColor = vec4(vColor.rgb, alpha * vAlpha * vColor.a);
+      gl_FragColor = vec4(vColor.rgb, vColor.a * vAlpha);
     }
   `
 }

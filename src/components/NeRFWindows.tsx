@@ -108,7 +108,6 @@ export function NeRFWindows() {
             color="#00ffff"
             anchorX="center"
             anchorY="middle"
-            font="/fonts/inter-v12-latin-regular.woff"
           >
             {windowLabels[i]}
           </Text>

@@ -1,7 +1,16 @@
-import { useRef, useEffect, useState, useMemo } from 'react'
+import { useRef, useState, useMemo } from 'react'
 import { useFrame } from '@react-three/fiber'
 import * as THREE from 'three'
 import { Line, Sphere } from '@react-three/drei'
+import { loopClosureSnapOffset } from '../lib/trajectory'
+import {
+  advanceShockwave,
+  generatePoseNodes,
+  loopClosureSparkOpacity,
+  nodeShockwaveLit,
+  selectLoopClosurePairs,
+  sequentialEdges,
+} from '../lib/poseGraph'
 
 interface GraphSLAMProps {
   loopClosureEvent: boolean
@@ -10,72 +19,36 @@ interface GraphSLAMProps {
 export function GraphSLAM({ loopClosureEvent }: GraphSLAMProps) {
   const poseGraphRef = useRef<THREE.Group>(null)
   const [shockwaveProgress, setShockwaveProgress] = useState(0)
-  const [loopClosureEdges, setLoopClosureEdges] = useState<[THREE.Vector3, THREE.Vector3][]>([])
   
-  // Generate pose graph nodes
-  const poseNodes = useMemo(() => {
-    const nodes: THREE.Vector3[] = []
-    const numNodes = 50
-    
-    for (let i = 0; i < numNodes; i++) {
-      const t = (i / numNodes) * Math.PI * 4
-      const x = Math.sin(t) * 15
-      const y = Math.sin(t * 2) * 5 + 10
-      const z = Math.cos(t) * 15
-      nodes.push(new THREE.Vector3(x, y, z))
-    }
-    
-    return nodes
-  }, [])
+  const poseNodes = useMemo(
+    () => generatePoseNodes(50).map((node) => new THREE.Vector3(node.x, node.y, node.z)),
+    [],
+  )
 
-  // Generate edges between consecutive poses
-  const edges = useMemo(() => {
-    const edgeList: [THREE.Vector3, THREE.Vector3][] = []
-    for (let i = 0; i < poseNodes.length - 1; i++) {
-      edgeList.push([poseNodes[i], poseNodes[i + 1]])
-    }
-    return edgeList
-  }, [poseNodes])
+  const edges = useMemo(
+    () => sequentialEdges(poseNodes.length).map(([a, b]) => [poseNodes[a], poseNodes[b]] as [THREE.Vector3, THREE.Vector3]),
+    [poseNodes],
+  )
 
-  // Handle loop closure event
-  useEffect(() => {
-    if (loopClosureEvent) {
-      // Create loop closure edges
-      const newEdges: [THREE.Vector3, THREE.Vector3][] = []
-      
-      // Add loop closure connections
-      for (let i = 0; i < 3; i++) {
-        const start = Math.floor(Math.random() * poseNodes.length)
-        const end = Math.floor(Math.random() * poseNodes.length)
-        if (Math.abs(start - end) > 10) {
-          newEdges.push([poseNodes[start], poseNodes[end]])
-        }
-      }
-      
-      setLoopClosureEdges(newEdges)
-      setShockwaveProgress(0)
-      
-      // Clear loop closure edges after animation
-      setTimeout(() => {
-        setLoopClosureEdges([])
-      }, 3000)
-    }
+  const loopClosureEdges = useMemo(() => {
+    if (!loopClosureEvent) return [] as [THREE.Vector3, THREE.Vector3][]
+    return selectLoopClosurePairs(poseNodes.length, 3, 10).map(
+      ([start, end]) => [poseNodes[start], poseNodes[end]] as [THREE.Vector3, THREE.Vector3],
+    )
   }, [loopClosureEvent, poseNodes])
 
   useFrame((state) => {
     if (!poseGraphRef.current) return
     
-    // Animate shockwave
-    if (loopClosureEvent && shockwaveProgress < 1) {
-      setShockwaveProgress(prev => Math.min(prev + 0.02, 1))
-    }
-    
-    // Snap effect during loop closure
     if (loopClosureEvent) {
-      const snapIntensity = Math.sin(state.clock.elapsedTime * 20) * 0.2
+      if (shockwaveProgress < 1) {
+        setShockwaveProgress((prev) => advanceShockwave(prev))
+      }
+      const snapIntensity = loopClosureSnapOffset(state.clock.elapsedTime, 0.2)
       poseGraphRef.current.position.x = snapIntensity
       poseGraphRef.current.position.z = snapIntensity
     } else {
+      if (shockwaveProgress !== 0) setShockwaveProgress(0)
       poseGraphRef.current.position.x = 0
       poseGraphRef.current.position.z = 0
     }
@@ -91,7 +64,7 @@ export function GraphSLAM({ loopClosureEvent }: GraphSLAMProps) {
           args={[0.2]}
         >
           <meshStandardMaterial
-            color={loopClosureEvent && shockwaveProgress > i / poseNodes.length ? "#00ff00" : "#FFD700"}
+            color={loopClosureEvent && nodeShockwaveLit(shockwaveProgress, i, poseNodes.length) ? "#00ff00" : "#FFD700"}
             emissive={loopClosureEvent ? "#00ff00" : "#FFD700"}
             emissiveIntensity={loopClosureEvent ? 1 : 0.3}
           />
@@ -130,7 +103,7 @@ export function GraphSLAM({ loopClosureEvent }: GraphSLAMProps) {
                 <meshBasicMaterial
                   color="#00ffff"
                   transparent
-                  opacity={Math.sin((shockwaveProgress - t) * Math.PI) * (shockwaveProgress > t ? 1 : 0)}
+                  opacity={loopClosureSparkOpacity(shockwaveProgress, t)}
                 />
               </mesh>
             )

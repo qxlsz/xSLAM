@@ -1,4 +1,16 @@
 import { useState, useRef } from 'react'
+import {
+  RECORD_FPS,
+  RECORD_MAX_MS,
+  canStartRecording,
+  canStopRecording,
+  recordButtonClass,
+  recordButtonLabel,
+  recordingFileName,
+  recordingOptions,
+  shouldAutoStop,
+  shouldKeepChunk,
+} from '../lib/recorder'
 import './VideoRecorder.css'
 
 export function VideoRecorder() {
@@ -8,20 +20,17 @@ export function VideoRecorder() {
   
   const startRecording = async () => {
     try {
-      const canvas = document.querySelector('canvas') as HTMLCanvasElement
-      if (!canvas) return
+      const canvas = document.querySelector('canvas')
+      if (!canStartRecording(canvas instanceof HTMLCanvasElement) || !canvas) return
       
-      const stream = canvas.captureStream(30)
-      const mediaRecorder = new MediaRecorder(stream, {
-        mimeType: 'video/webm;codecs=vp9',
-        videoBitsPerSecond: 5000000
-      })
+      const stream = canvas.captureStream(RECORD_FPS)
+      const mediaRecorder = new MediaRecorder(stream, recordingOptions())
       
       mediaRecorderRef.current = mediaRecorder
       chunksRef.current = []
       
       mediaRecorder.ondataavailable = (event) => {
-        if (event.data.size > 0) {
+        if (shouldKeepChunk(event.data.size)) {
           chunksRef.current.push(event.data)
         }
       }
@@ -32,7 +41,7 @@ export function VideoRecorder() {
         const a = document.createElement('a')
         a.style.display = 'none'
         a.href = url
-        a.download = `slam-visualization-${Date.now()}.webm`
+        a.download = recordingFileName(Date.now())
         document.body.appendChild(a)
         a.click()
         URL.revokeObjectURL(url)
@@ -44,34 +53,35 @@ export function VideoRecorder() {
       
       // Auto-stop after 30 seconds
       setTimeout(() => {
-        if (mediaRecorderRef.current?.state === 'recording') {
+        if (shouldAutoStop(mediaRecorderRef.current?.state ?? '')) {
           stopRecording()
         }
-      }, 30000)
+      }, RECORD_MAX_MS)
     } catch (error) {
       console.error('Failed to start recording:', error)
     }
   }
   
   const stopRecording = () => {
-    if (mediaRecorderRef.current?.state === 'recording') {
-      mediaRecorderRef.current.stop()
+    const recorder = mediaRecorderRef.current
+    if (recorder && canStopRecording(recorder.state)) {
+      recorder.stop()
       setIsRecording(false)
     }
   }
   
   return (
     <button
-      className={`record-button ${isRecording ? 'recording' : ''}`}
+      className={recordButtonClass(isRecording)}
       onClick={isRecording ? stopRecording : startRecording}
     >
       {isRecording ? (
         <>
           <span className="record-dot"></span>
-          Recording...
+          {recordButtonLabel(true)}
         </>
       ) : (
-        'Record'
+        recordButtonLabel(false)
       )}
     </button>
   )

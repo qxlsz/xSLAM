@@ -88,6 +88,34 @@ export function particleTarget(time: number): Vec3 {
   return figure8Point(time * 0.5)
 }
 
+export function gaussianLikelihood(distance: number, sigma: number): number {
+  if (sigma <= 0) return distance === 0 ? 1 : 0
+  return Math.exp(-0.5 * (distance * distance) / (sigma * sigma))
+}
+
+export function updateWeightsFromMeasurement(
+  positions: Float32Array,
+  measurement: Vec3,
+  sigma: number,
+  prior?: ArrayLike<number>,
+): Float32Array {
+  const count = Math.floor(positions.length / 3)
+  const unnormalized = new Float32Array(count)
+  for (let i = 0; i < count; i++) {
+    const dx = positions[i * 3] - measurement.x
+    const dy = positions[i * 3 + 1] - measurement.y
+    const dz = positions[i * 3 + 2] - measurement.z
+    const likelihood = gaussianLikelihood(Math.hypot(dx, dy, dz), sigma)
+    const weight = prior?.[i] ?? 1
+    unnormalized[i] = weight * likelihood
+  }
+  return normalizeWeights(unnormalized)
+}
+
+export function shouldResample(ess: number, count: number): boolean {
+  return count > 0 && ess < count / 2
+}
+
 export function stepParticles(
   positions: Float32Array,
   colors: Float32Array,

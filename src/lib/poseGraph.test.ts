@@ -7,6 +7,7 @@ import {
   nodeShockwaveLit,
   selectLoopClosurePairs,
   sequentialEdges,
+  spatialLoopClosurePairs,
 } from './poseGraph'
 import { figure8Point } from './trajectory'
 
@@ -47,6 +48,28 @@ describe('selectLoopClosurePairs', () => {
     for (const [start, end] of a) {
       expect(Math.abs(start - end)).toBeGreaterThan(10)
     }
+  })
+})
+
+describe('spatialLoopClosurePairs', () => {
+  it('pairs figure-8 poses that revisit the same place one lap later', () => {
+    const nodes = generatePoseNodes(50)
+    const pairs = spatialLoopClosurePairs(nodes, 10, 1e-6)
+    expect(pairs).toContainEqual([0, 25])
+    expect(pairs).toContainEqual([1, 26])
+    expect(pairs).toContainEqual([24, 49])
+    expect(pairs.every(([start, end]) => end - start > 10)).toBe(true)
+  })
+
+  it('does not pair nearby poses even when they sit on the same lobe', () => {
+    const nodes = generatePoseNodes(50)
+    const pairs = spatialLoopClosurePairs(nodes, 10, 1e-6)
+    expect(pairs.some(([start, end]) => end - start <= 10)).toBe(false)
+    expect(pairs).not.toContainEqual([0, 1])
+  })
+
+  it('returns no pairs when the distance gate is tighter than any revisit', () => {
+    expect(spatialLoopClosurePairs(generatePoseNodes(8), 2, -1)).toEqual([])
   })
 })
 

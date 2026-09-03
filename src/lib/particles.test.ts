@@ -5,11 +5,14 @@ import {
   CONVERGE_SPEED_LOOP,
   convergenceSpeed,
   effectiveSampleSize,
+  gaussianLikelihood,
   initializeParticles,
   normalizeWeights,
   particleTarget,
+  shouldResample,
   stepParticles,
   systematicResample,
+  updateWeightsFromMeasurement,
   weightToColor,
 } from './particles'
 import { figure8Point } from './trajectory'
@@ -88,6 +91,48 @@ describe('normalizeWeights / ESS / systematicResample', () => {
       expect(index).toBeGreaterThanOrEqual(0)
       expect(index).toBeLessThan(3)
     }
+  })
+})
+
+describe('measurement model', () => {
+  it('peaks at the measurement and falls off with distance', () => {
+    expect(gaussianLikelihood(0, 1)).toBeCloseTo(1)
+    expect(gaussianLikelihood(1, 1)).toBeCloseTo(Math.exp(-0.5))
+    expect(gaussianLikelihood(2, 1)).toBeLessThan(gaussianLikelihood(1, 1))
+  })
+
+  it('treats a zero sigma as a hard match', () => {
+    expect(gaussianLikelihood(0, 0)).toBe(1)
+    expect(gaussianLikelihood(0.1, 0)).toBe(0)
+  })
+
+  it('reweights particles toward the observed pose', () => {
+    const positions = new Float32Array([
+      0, 0, 0,
+      10, 0, 0,
+      1, 0, 0,
+    ])
+    const weights = updateWeightsFromMeasurement(positions, { x: 0, y: 0, z: 0 }, 1)
+    expect(weights.reduce((sum, w) => sum + w, 0)).toBeCloseTo(1)
+    expect(weights[0]).toBeGreaterThan(weights[2])
+    expect(weights[2]).toBeGreaterThan(weights[1])
+  })
+
+  it('multiplies a prior instead of replacing it', () => {
+    const positions = new Float32Array([0, 0, 0, 0, 0, 0])
+    const weights = updateWeightsFromMeasurement(
+      positions,
+      { x: 0, y: 0, z: 0 },
+      1,
+      [0.25, 0.75],
+    )
+    expect(weights[1] / weights[0]).toBeCloseTo(3)
+  })
+
+  it('requests resample when ESS drops below N/2', () => {
+    expect(shouldResample(1, 8)).toBe(true)
+    expect(shouldResample(8, 8)).toBe(false)
+    expect(shouldResample(0, 0)).toBe(false)
   })
 })
 

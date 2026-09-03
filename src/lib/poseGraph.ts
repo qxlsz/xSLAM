@@ -18,6 +18,26 @@ export function sequentialEdges(count: number): Array<[number, number]> {
   return edges
 }
 
+export function spatialLoopClosurePairs(
+  nodes: Vec3[],
+  minIndexSeparation: number,
+  maxDistance: number,
+): Array<[number, number]> {
+  const pairs: Array<[number, number]> = []
+  for (let i = 0; i < nodes.length; i++) {
+    for (let j = i + 1; j < nodes.length; j++) {
+      if (j - i <= minIndexSeparation) continue
+      const dx = nodes[i].x - nodes[j].x
+      const dy = nodes[i].y - nodes[j].y
+      const dz = nodes[i].z - nodes[j].z
+      if (Math.hypot(dx, dy, dz) <= maxDistance) {
+        pairs.push([i, j])
+      }
+    }
+  }
+  return pairs
+}
+
 export function selectLoopClosurePairs(
   nodeCount: number,
   attempts: number,

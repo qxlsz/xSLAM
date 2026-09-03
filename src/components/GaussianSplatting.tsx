@@ -1,6 +1,7 @@
 import { useRef, useMemo, useEffect } from 'react'
 import { useFrame } from '@react-three/fiber'
 import * as THREE from 'three'
+import { initializeGaussians } from '../lib/gaussians'
 
 // Custom shader for gaussian splats
 const GaussianShaderMaterial = {
@@ -59,37 +60,7 @@ export function GaussianSplatting({ scale, count }: GaussianSplattingProps) {
   const burstTimeRef = useRef(0)
   const pruneTimeRef = useRef(0)
 
-  // Initialize positions and colors
-  const { positions, colors, scales } = useMemo(() => {
-    const positions = new Float32Array(count * 3)
-    const colors = new Float32Array(count * 4)
-    const scales = new Float32Array(count * 3)
-    
-    for (let i = 0; i < count; i++) {
-      // Distributed in 3D space
-      positions[i * 3] = (Math.random() - 0.5) * 40
-      positions[i * 3 + 1] = Math.random() * 20
-      positions[i * 3 + 2] = (Math.random() - 0.5) * 40
-      
-      // Cyberpunk colors
-      const hue = Math.random()
-      if (hue < 0.3) {
-        colors[i * 4] = 0; colors[i * 4 + 1] = 1; colors[i * 4 + 2] = 1 // Cyan
-      } else if (hue < 0.6) {
-        colors[i * 4] = 1; colors[i * 4 + 1] = 0; colors[i * 4 + 2] = 0.5 // Magenta
-      } else {
-        colors[i * 4] = 1; colors[i * 4 + 1] = 1; colors[i * 4 + 2] = 0 // Yellow
-      }
-      colors[i * 4 + 3] = 0.6 + Math.random() * 0.4
-      
-      // Ellipsoidal scales
-      scales[i * 3] = 0.5 + Math.random() * 1.5
-      scales[i * 3 + 1] = 0.5 + Math.random() * 1.5
-      scales[i * 3 + 2] = 0.5 + Math.random() * 1.5
-    }
-    
-    return { positions, colors, scales }
-  }, [count])
+  const { positions, colors, scales } = useMemo(() => initializeGaussians(count), [count])
 
   // Update instances
   useEffect(() => {

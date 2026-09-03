@@ -1,25 +1,19 @@
 import { useState, useEffect } from 'react'
+import {
+  INITIAL_SLAM_STATS,
+  formatAteCm,
+  formatGaussianCount,
+  formatParticleCount,
+  tickHudStats,
+} from '../lib/hud'
 import './HUD.css'
 
 export function HUD() {
-  const [stats, setStats] = useState({
-    gaussians: 10000,
-    particles: 8000,
-    loopClosures: 0,
-    ate: 0.012,
-    fps: 60
-  })
+  const [stats, setStats] = useState(INITIAL_SLAM_STATS)
   
   useEffect(() => {
-    // Animate stats
     const interval = setInterval(() => {
-      setStats(prev => ({
-        gaussians: Math.min(prev.gaussians + Math.floor(Math.random() * 50000), 3000000),
-        particles: Math.max(312, prev.particles - Math.floor(Math.random() * 100)),
-        loopClosures: prev.loopClosures + (Math.random() < 0.02 ? 1 : 0),
-        ate: Math.max(0.001, prev.ate + (Math.random() - 0.5) * 0.002),
-        fps: 55 + Math.floor(Math.random() * 10)
-      }))
+      setStats((prev) => tickHudStats(prev))
     }, 500)
     
     return () => clearInterval(interval)
@@ -31,11 +25,11 @@ export function HUD() {
       <div className="hud-stats">
         <div className="stat">
           <span className="stat-label">Gaussians:</span>
-          <span className="stat-value">{(stats.gaussians / 1000000).toFixed(1)}M ▲</span>
+          <span className="stat-value">{formatGaussianCount(stats.gaussians)}</span>
         </div>
         <div className="stat">
           <span className="stat-label">Particles:</span>
-          <span className="stat-value">{stats.particles.toLocaleString()} → 312</span>
+          <span className="stat-value">{formatParticleCount(stats.particles)}</span>
         </div>
         <div className="stat">
           <span className="stat-label">Loop Closures:</span>
@@ -43,7 +37,7 @@ export function HUD() {
         </div>
         <div className="stat">
           <span className="stat-label">ATE:</span>
-          <span className="stat-value">{(stats.ate * 100).toFixed(1)} cm</span>
+          <span className="stat-value">{formatAteCm(stats.ate)}</span>
         </div>
         <div className="stat">
           <span className="stat-label">FPS:</span>

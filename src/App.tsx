@@ -15,16 +15,11 @@ import { HUD } from './components/HUD'
 import { CinematicCamera } from './components/CinematicCamera'
 import { NeRFWindows } from './components/NeRFWindows'
 import { VideoRecorder } from './components/VideoRecorder'
+import { INITIAL_SLAM_STATS, capFps, growGaussianCount, incrementLoopClosures } from './lib/hud'
 
 function Scene() {
   const [loopClosureEvent, setLoopClosureEvent] = useState(false)
-  const [stats, setStats] = useState({
-    gaussians: 10000,
-    particles: 8000,
-    loopClosures: 0,
-    ate: 0.012,
-    fps: 60
-  })
+  const [stats, setStats] = useState(INITIAL_SLAM_STATS)
 
   const controls = useControls({
     'Visual Effects': folder({
@@ -54,7 +49,7 @@ function Scene() {
   useEffect(() => {
     const interval = setInterval(() => {
       setLoopClosureEvent(true)
-      setStats(prev => ({ ...prev, loopClosures: prev.loopClosures + 1 }))
+      setStats(prev => ({ ...prev, loopClosures: incrementLoopClosures(prev.loopClosures, true) }))
       setTimeout(() => setLoopClosureEvent(false), 3000)
     }, 60000)
     return () => clearInterval(interval)
@@ -64,7 +59,7 @@ function Scene() {
   useFrame((state) => {
     const fps = Math.round(1 / state.clock.getDelta())
     if (Math.random() < 0.1) {
-      setStats(prev => ({ ...prev, fps: Math.min(fps, 120) }))
+      setStats(prev => ({ ...prev, fps: capFps(fps) }))
     }
   })
 
@@ -73,7 +68,7 @@ function Scene() {
     const interval = setInterval(() => {
       setStats(prev => ({
         ...prev,
-        gaussians: Math.min(prev.gaussians + Math.floor(Math.random() * 50000), 3000000)
+        gaussians: growGaussianCount(prev.gaussians, Math.floor(Math.random() * 50000))
       }))
     }, 500)
     return () => clearInterval(interval)

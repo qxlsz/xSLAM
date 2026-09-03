@@ -1,7 +1,14 @@
-import { useRef, useMemo } from 'react'
+import { useRef, useMemo, type RefObject } from 'react'
 import { useFrame } from '@react-three/fiber'
 import { Trail, Box, Cone } from '@react-three/drei'
 import * as THREE from 'three'
+import {
+  figure8Point,
+  figure8Velocity,
+  generateFigure8Path,
+  loopClosureSnapOffset,
+  wrapTrajectoryTime,
+} from '../lib/trajectory'
 
 interface DroneSystemProps {
   enableTrail: boolean
@@ -11,56 +18,44 @@ interface DroneSystemProps {
 
 export function DroneSystem({ enableTrail, speed, loopClosureEvent }: DroneSystemProps) {
   const droneRef = useRef<THREE.Group>(null)
+  const rotorsRef = useRef<THREE.Group>(null)
   const trajectoryPoints = useRef<THREE.Vector3[]>([])
   const time = useRef(0)
 
-  // Generate figure-8 trajectory with loop
-  const trajectory = useMemo(() => {
-    const points: THREE.Vector3[] = []
-    const segments = 200
-    for (let i = 0; i <= segments; i++) {
-      const t = (i / segments) * Math.PI * 4
-      const x = Math.sin(t) * 15
-      const y = Math.sin(t * 2) * 5 + 10
-      const z = Math.cos(t) * 15
-      points.push(new THREE.Vector3(x, y, z))
-    }
-    return points
-  }, [])
+  const trajectory = useMemo(
+    () => generateFigure8Path(200).map((p) => new THREE.Vector3(p.x, p.y, p.z)),
+    [],
+  )
 
   useFrame((state, delta) => {
     if (!droneRef.current) return
 
     time.current += delta * speed * 0.5
-    const t = time.current % (Math.PI * 4)
+    const t = wrapTrajectoryTime(time.current)
+    const { x, y, z } = figure8Point(t)
     
-    // Calculate position
-    const x = Math.sin(t) * 15
-    const y = Math.sin(t * 2) * 5 + 10
-    const z = Math.cos(t) * 15
-    
-    // Apply loop closure snap effect
     if (loopClosureEvent) {
-      const snapOffset = Math.sin(state.clock.elapsedTime * 20) * 0.5
+      const snapOffset = loopClosureSnapOffset(state.clock.elapsedTime, 0.5)
       droneRef.current.position.set(x + snapOffset, y, z + snapOffset)
     } else {
       droneRef.current.position.set(x, y, z)
     }
     
-    // Calculate velocity for rotation
-    const dx = Math.cos(t) * 15
-    const dy = Math.cos(t * 2) * 10
-    const dz = -Math.sin(t) * 15
-    
-    // Look in direction of movement
+    const { x: dx, y: dy, z: dz } = figure8Velocity(t)
     const direction = new THREE.Vector3(dx, dy, dz).normalize()
     const quaternion = new THREE.Quaternion().setFromUnitVectors(
       new THREE.Vector3(0, 0, 1),
       direction
     )
     droneRef.current.quaternion.slerp(quaternion, 0.1)
+
+    if (rotorsRef.current) {
+      const spin = time.current * 40
+      for (const rotor of rotorsRef.current.children) {
+        rotor.rotation.y = spin
+      }
+    }
     
-    // Store trajectory points
     if (trajectoryPoints.current.length < 1000) {
       trajectoryPoints.current.push(droneRef.current.position.clone())
     }
@@ -83,20 +78,22 @@ export function DroneSystem({ enableTrail, speed, loopClosureEvent }: DroneSyste
         </mesh>
         
         {/* Drone rotors */}
-        {[[-0.7, 0.3, -0.7], [0.7, 0.3, -0.7], [-0.7, 0.3, 0.7], [0.7, 0.3, 0.7]].map((pos, i) => (
-          <group key={i} position={pos as [number, number, number]}>
-            <mesh rotation={[0, Date.now() * 0.01, 0]}>
-              <cylinderGeometry args={[0.3, 0.3, 0.05]} />
-              <meshStandardMaterial 
-                color="#ffffff" 
-                emissive="#00ffff"
-                emissiveIntensity={0.3}
-                transparent
-                opacity={0.6}
-              />
-            </mesh>
-          </group>
-        ))}
+        <group ref={rotorsRef}>
+          {[[-0.7, 0.3, -0.7], [0.7, 0.3, -0.7], [-0.7, 0.3, 0.7], [0.7, 0.3, 0.7]].map((pos, i) => (
+            <group key={i} position={pos as [number, number, number]}>
+              <mesh>
+                <cylinderGeometry args={[0.3, 0.3, 0.05]} />
+                <meshStandardMaterial 
+                  color="#ffffff" 
+                  emissive="#00ffff"
+                  emissiveIntensity={0.3}
+                  transparent
+                  opacity={0.6}
+                />
+              </mesh>
+            </group>
+          ))}
+        </group>
         
         {/* Drone camera/sensor */}
         <Cone args={[0.2, 0.4]} position={[0, -0.3, 0.5]} rotation={[Math.PI / 2, 0, 0]}>
@@ -113,13 +110,13 @@ export function DroneSystem({ enableTrail, speed, loopClosureEvent }: DroneSyste
       </group>
       
       {/* Neon trail */}
-      {enableTrail && droneRef.current && (
+      {enableTrail && (
         <Trail
           width={2}
           length={50}
           color="#0088ff"
           attenuation={(t) => t * t}
-          target={droneRef as any}
+          target={droneRef as RefObject<THREE.Object3D>}
         />
       )}
       
@@ -144,7 +141,7 @@ export function DroneSystem({ enableTrail, speed, loopClosureEvent }: DroneSyste
         <tubeGeometry args={[
           new THREE.CatmullRomCurve3(trajectory.slice(0, 50)),
           50,
-          0.2 + Math.sin(Date.now() * 0.001) * 0.1,
+          0.2,
           8,
           false
         ]} />

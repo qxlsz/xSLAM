@@ -1,7 +1,16 @@
-import { useRef, useMemo } from 'react'
+import { useRef, useMemo, useEffect } from 'react'
 import { useFrame } from '@react-three/fiber'
 import * as THREE from 'three'
 import { useControls, button } from 'leva'
+import {
+  clearLidarTimestamps,
+  initializeLidarBuffers,
+  lidarDecayFromPersistence,
+  lidarScanAngles,
+  writeLidarSample,
+} from '../lib/lidar'
+
+let lidarClearHandler = () => {}
 
 const LidarShaderMaterial = {
   uniforms: {
@@ -41,7 +50,7 @@ const LidarShaderMaterial = {
     varying float vDist;
 
     void main() {
-      // Calculate alpha based on age and decay
+      // Keep in sync with lidarAlpha / lidarColor in src/lib/lidar.ts
       float alpha = 1.0 - (vAge * uDecay);
       
       if (alpha <= 0.0) discard;
@@ -90,29 +99,23 @@ export function LidarPointCloud() {
     colorMode: { options: { 'Distance': 0, 'Height': 1, 'Intensity': 2 } },
     freeze: { value: false, label: 'Freeze Scan' },
     clear: button(() => {
-      if (pointsRef.current) {
-        const timestamps = pointsRef.current.geometry.attributes.timestamp.array as Float32Array
-        timestamps.fill(-1000) // Make all points old
-        pointsRef.current.geometry.attributes.timestamp.needsUpdate = true
-      }
+      lidarClearHandler()
     })
   })
-  
-  // Initialize point cloud
-  const { positions, timestamps } = useMemo(() => {
-    const positions = new Float32Array(maxPoints * 3)
-    const timestamps = new Float32Array(maxPoints)
-    
-    // Initialize off-screen
-    for (let i = 0; i < maxPoints; i++) {
-      positions[i * 3] = 0
-      positions[i * 3 + 1] = -1000
-      positions[i * 3 + 2] = 0
-      timestamps[i] = -1000
+
+  useEffect(() => {
+    lidarClearHandler = () => {
+      if (!pointsRef.current) return
+      const timestampsArray = pointsRef.current.geometry.attributes.timestamp.array as Float32Array
+      clearLidarTimestamps(timestampsArray)
+      pointsRef.current.geometry.attributes.timestamp.needsUpdate = true
     }
-    
-    return { positions, timestamps }
-  }, [])
+    return () => {
+      lidarClearHandler = () => {}
+    }
+  })
+  
+  const { positions, timestamps } = useMemo(() => initializeLidarBuffers(maxPoints), [])
 
   useFrame((state) => {
     if (!pointsRef.current || !materialRef.current) return
@@ -122,7 +125,7 @@ export function LidarPointCloud() {
     
     // Update uniforms
     materialRef.current.uniforms.uTime.value = time
-    materialRef.current.uniforms.uDecay.value = (1 - persistence) * 0.5
+    materialRef.current.uniforms.uDecay.value = lidarDecayFromPersistence(persistence)
     materialRef.current.uniforms.uPointSize.value = pointSize
     materialRef.current.uniforms.uColorMode.value = colorMode
     materialRef.current.uniforms.uMaxRange.value = maxRange
@@ -132,58 +135,17 @@ export function LidarPointCloud() {
     const positionsArray = pointsRef.current.geometry.attributes.position.array as Float32Array
     const timestampsArray = pointsRef.current.geometry.attributes.timestamp.array as Float32Array
     
-    // Simulate LiDAR scanning
     for (let i = 0; i < pointsPerFrame; i++) {
-      const index = currentPointIndex.current % maxPoints
-      
-      // Generate scanning pattern
-      const angle = time * scanSpeed * 2 + (i / pointsPerFrame) * Math.PI * 2
-      const verticalAngle = Math.sin(time * scanSpeed * 0.5 + i * 0.01) * Math.PI / 3
-      
-      // Raycast simulation
-      const dist = 5 + Math.random() * maxRange
-      
-      // Create structured environment hits (ground + walls)
-      let hit = false
-      let x = 0, y = 0, z = 0
-      
-      // Direction vector
-      const dx = Math.cos(angle) * Math.cos(verticalAngle)
-      const dy = Math.sin(verticalAngle)
-      const dz = Math.sin(angle) * Math.cos(verticalAngle)
-      
-      // Ground plane at y=0
-      if (dy < 0) {
-        const d = -10 / dy // Camera at y=10 approx
-        if (d > 0 && d < maxRange) {
-          x = dx * d
-          y = dy * d + 10
-          z = dz * d
-          hit = true
-        }
-      }
-      
-      // Random walls/objects
-      if (!hit && Math.random() > 0.3) {
-         x = dx * dist
-         y = dy * dist + 10
-         z = dz * dist
-         hit = true
-      }
-
-      if (hit) {
-        positionsArray[index * 3] = x
-        positionsArray[index * 3 + 1] = y
-        positionsArray[index * 3 + 2] = z
-        timestampsArray[index] = time
-      } else {
-        // Miss
-        positionsArray[index * 3] = 0
-        positionsArray[index * 3 + 1] = -1000
-        positionsArray[index * 3 + 2] = 0
-        timestampsArray[index] = -1000
-      }
-      
+      const { azimuth, elevation } = lidarScanAngles(time, scanSpeed, i, pointsPerFrame)
+      writeLidarSample(
+        positionsArray,
+        timestampsArray,
+        currentPointIndex.current,
+        azimuth,
+        elevation,
+        maxRange,
+        time,
+      )
       currentPointIndex.current++
     }
     

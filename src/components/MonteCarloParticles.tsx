@@ -10,9 +10,10 @@ interface MonteCarloParticlesProps {
 
 export function MonteCarloParticles({ count, loopClosureEvent }: MonteCarloParticlesProps) {
   const particlesRef = useRef<THREE.Points>(null)
-  const [exploded, setExploded] = useState(true)
+  const [exploded, setExploded] = useState(false)
   const [converging, setConverging] = useState(false)
   const resampleTime = useRef(0)
+  const explosionStarted = useRef(false)
 
   const { positions, colors, velocities, weights } = useMemo(
     () => initializeParticles(count),
@@ -29,6 +30,11 @@ export function MonteCarloParticles({ count, loopClosureEvent }: MonteCarloParti
 
   useFrame((state) => {
     if (!particlesRef.current) return
+
+    if (!explosionStarted.current) {
+      explosionStarted.current = true
+      setExploded(true)
+    }
     
     const positionsArray = particlesRef.current.geometry.attributes.position.array as Float32Array
     const colorsArray = particlesRef.current.geometry.attributes.color.array as Float32Array

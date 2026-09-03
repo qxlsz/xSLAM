@@ -14,10 +14,6 @@ export function mixRgb(a: Rgb, b: Rgb, t: number): Rgb {
   return [lerp(a[0], b[0], t), lerp(a[1], b[1], t), lerp(a[2], b[2], t)]
 }
 
-export function addVec3(a: Vec3, b: Vec3): Vec3 {
-  return { x: a.x + b.x, y: a.y + b.y, z: a.z + b.z }
-}
-
 export function lengthVec3(v: Vec3): number {
   return Math.hypot(v.x, v.y, v.z)
 }

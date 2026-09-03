@@ -50,7 +50,7 @@ const LidarShaderMaterial = {
     varying float vDist;
 
     void main() {
-      // Calculate alpha based on age and decay
+      // Keep in sync with lidarAlpha / lidarColor in src/lib/lidar.ts
       float alpha = 1.0 - (vAge * uDecay);
       
       if (alpha <= 0.0) discard;

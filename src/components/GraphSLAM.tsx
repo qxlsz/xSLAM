@@ -19,6 +19,9 @@ interface GraphSLAMProps {
 export function GraphSLAM({ loopClosureEvent }: GraphSLAMProps) {
   const poseGraphRef = useRef<THREE.Group>(null)
   const [shockwaveProgress, setShockwaveProgress] = useState(0)
+  const [loopClosureEdges, setLoopClosureEdges] = useState<[THREE.Vector3, THREE.Vector3][]>([])
+  const wasLoopClosure = useRef(false)
+  const clearAtMs = useRef<number | null>(null)
   
   const poseNodes = useMemo(
     () => generatePoseNodes(50).map((node) => new THREE.Vector3(node.x, node.y, node.z)),
@@ -30,15 +33,23 @@ export function GraphSLAM({ loopClosureEvent }: GraphSLAMProps) {
     [poseNodes],
   )
 
-  const loopClosureEdges = useMemo(() => {
-    if (!loopClosureEvent) return [] as [THREE.Vector3, THREE.Vector3][]
-    return selectLoopClosurePairs(poseNodes.length, 3, 10).map(
-      ([start, end]) => [poseNodes[start], poseNodes[end]] as [THREE.Vector3, THREE.Vector3],
-    )
-  }, [loopClosureEvent, poseNodes])
-
   useFrame((state) => {
     if (!poseGraphRef.current) return
+
+    if (loopClosureEvent && !wasLoopClosure.current) {
+      setLoopClosureEdges(
+        selectLoopClosurePairs(poseNodes.length, 3, 10).map(
+          ([start, end]) => [poseNodes[start], poseNodes[end]] as [THREE.Vector3, THREE.Vector3],
+        ),
+      )
+      setShockwaveProgress(0)
+      clearAtMs.current = performance.now() + 3000
+    }
+    if (clearAtMs.current !== null && performance.now() >= clearAtMs.current) {
+      setLoopClosureEdges([])
+      clearAtMs.current = null
+    }
+    wasLoopClosure.current = loopClosureEvent
     
     if (loopClosureEvent) {
       if (shockwaveProgress < 1) {
@@ -48,7 +59,6 @@ export function GraphSLAM({ loopClosureEvent }: GraphSLAMProps) {
       poseGraphRef.current.position.x = snapIntensity
       poseGraphRef.current.position.z = snapIntensity
     } else {
-      if (shockwaveProgress !== 0) setShockwaveProgress(0)
       poseGraphRef.current.position.x = 0
       poseGraphRef.current.position.z = 0
     }

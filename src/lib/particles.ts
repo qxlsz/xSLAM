@@ -108,6 +108,21 @@ export function stepParticles(
   const { count, time } = opts
 
   if (opts.resampleTriggered) {
+    const indices = systematicResample(weights, rng)
+    const nextPositions = new Float32Array(positions.length)
+    const nextVelocities = new Float32Array(velocities.length)
+    for (let i = 0; i < count; i++) {
+      const src = indices[i]
+      nextPositions[i * 3] = positions[src * 3]
+      nextPositions[i * 3 + 1] = positions[src * 3 + 1]
+      nextPositions[i * 3 + 2] = positions[src * 3 + 2]
+      nextVelocities[i * 3] = velocities[src * 3]
+      nextVelocities[i * 3 + 1] = velocities[src * 3 + 1]
+      nextVelocities[i * 3 + 2] = velocities[src * 3 + 2]
+    }
+    positions.set(nextPositions)
+    velocities.set(nextVelocities)
+
     for (let i = 0; i < count; i++) {
       if (rng() < 0.3) {
         colors[i * 3] = 0

@@ -149,6 +149,30 @@ describe('stepParticles', () => {
     expect(positions[2]).toBeCloseTo(target.z * CONVERGE_SPEED + Math.sin(time * 3) * 0.01)
   })
 
+  it('copies the dominant particle onto the set during resample', () => {
+    const positions = new Float32Array([0, 0, 0, 10, 20, 30, 1, 1, 1])
+    const colors = new Float32Array(9)
+    const velocities = new Float32Array([0, 0, 0, 4, 5, 6, 0, 0, 0])
+    const weights = new Float32Array([0.01, 0.97, 0.02])
+
+    stepParticles(positions, colors, velocities, weights, {
+      count: 3,
+      time: 0,
+      exploded: false,
+      converging: false,
+      loopClosureEvent: false,
+      resampleTime: 0,
+      resampleTriggered: true,
+      rng: () => 0.25,
+    })
+
+    expect(positions[0]).toBeCloseTo(10 + Math.sin(0) * 0.01)
+    expect(positions[1]).toBeCloseTo(20 + Math.cos(0) * 0.01)
+    expect(positions[2]).toBeCloseTo(30 + Math.sin(0) * 0.01)
+    expect(velocities[0]).toBeCloseTo(4)
+    expect(velocities[3]).toBeCloseTo(4)
+  })
+
   it('flashes cyan on a resample draw below 0.3', () => {
     const positions = new Float32Array([0, 0, 0])
     const colors = new Float32Array([0.4, 0.6, 1])

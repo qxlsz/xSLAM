@@ -36,6 +36,7 @@ export function lidarDecayFromPersistence(persistence: number): number {
   return (1 - persistence) * 0.5
 }
 
+/** CPU contract for the LiDAR fragment shader (`uDecay` / `vAge` alpha). */
 export function lidarAlpha(age: number, decay: number): number {
   return 1 - age * decay
 }
@@ -44,6 +45,7 @@ export function shouldDiscardLidarPoint(age: number, decay: number): boolean {
   return lidarAlpha(age, decay) <= 0
 }
 
+/** CPU contract for the LiDAR fragment shader `uColorMode` branches. */
 export function lidarColor(mode: number, dist: number, y: number, maxRange: number): Rgb {
   if (mode === LidarColorMode.Distance) {
     const t = clamp(dist / maxRange, 0, 1)

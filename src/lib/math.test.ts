@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { addVec3, clamp, lengthVec3, lerp, mixRgb, mulberry32 } from './math'
+import { clamp, lengthVec3, lerp, mixRgb, mulberry32 } from './math'
 
 describe('clamp', () => {
   it('returns the value when it is inside the range', () => {
@@ -24,8 +24,7 @@ describe('lerp / mixRgb', () => {
 })
 
 describe('vec3 helpers', () => {
-  it('adds component-wise and reports Euclidean length', () => {
-    expect(addVec3({ x: 1, y: 2, z: 3 }, { x: 4, y: 5, z: 6 })).toEqual({ x: 5, y: 7, z: 9 })
+  it('reports Euclidean length', () => {
     expect(lengthVec3({ x: 3, y: 4, z: 0 })).toBe(5)
   })
 })
